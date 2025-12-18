@@ -1,0 +1,35 @@
+# Environment variables
+.env
+
+# Airflow logs
+logs/
+
+# MongoDB data
+mongo-data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+
+# Python package metadata
+*.egg-info/
+
+# Airflow database (SQLite)
+airflow.db
+
+# Process ID files
+*.pid
+
+# Log files
+*.log
+
+# macOS system files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
