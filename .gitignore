@@ -5,7 +5,9 @@
 logs/
 
 # Sample Data
-sample_data/
+sample_data/*
+sftp_data/uploads/*
+sftp_data/downloads/*
 
 # MongoDB data
 mongo-data/

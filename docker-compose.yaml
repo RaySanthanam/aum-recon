@@ -71,15 +71,21 @@ x-airflow-common:
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- pymongo dbfread apache-airflow }
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- pymongo dbfread apache-airflow paramiko }
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+  networks:
+    - default
+    - sftp-network
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/sample_data:/opt/airflow/sample_data
+    - ${AIRFLOW_PROJ_DIR:-.}/utils:/opt/airflow/utils
+    - ${AIRFLOW_PROJ_DIR:-.}/sftp_data:/opt/airflow/sftp_data
+
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -111,6 +117,19 @@ services:
       - "27017:27017"
     volumes:
       - ./mongo-data:/data/db
+
+  sftp-server:
+    image: atmoz/sftp
+    container_name: sftp-server
+    ports:
+      - "2222:22"
+    environment:
+      - SFTP_USERS=testuser:testpass:1001
+    volumes:
+      - ./sftp_data/uploads:/home/testuser/uploads
+    restart: unless-stopped
+    networks:
+      - sftp-network
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -344,3 +363,7 @@ services:
 
 volumes:
   postgres-db-volume:
+
+networks:
+  sftp-network:
+    driver: bridge

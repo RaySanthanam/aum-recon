@@ -154,7 +154,7 @@ def generate_mongo_transactions():
     return transactions
 
 
-def generate_karvy_dbf(filename="sample_data/karvey.dbf"):
+def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
     """Generate Karvy DBF file with 10 records."""
 
     # Create directory if it doesn't exist
@@ -289,7 +289,7 @@ def generate_karvy_dbf(filename="sample_data/karvey.dbf"):
     print(f"  - Karvy only: 1")
 
 
-def generate_cams_dbf(filename="sample_data/CAMS.dbf"):
+def generate_cams_dbf(filename="sftp_data/uploads/cams.dbf"):
     """Generate CAMS DBF file with 8 records."""
 
     # Create directory if it doesn't exist

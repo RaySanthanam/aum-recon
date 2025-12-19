@@ -3,10 +3,28 @@ from airflow.sdk.definitions.decorators import task
 from datetime import datetime, timedelta
 from dbfread import DBF  # type: ignore
 from pymongo import MongoClient
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.sftp_client import SFTPClient
 
-CAMS_DBF_PATH = "/opt/airflow/sample_data/cams.dbf"
-KARVEY_DBF_PATH = "/opt/airflow/sample_data/karvey.dbf"
+CAMS_DBF_PATH = "/opt/airflow/sftp_data/downloads/cams.dbf"
+KARVEY_DBF_PATH = "/opt/airflow/sftp_data/downloads/karvey.dbf"
 BATCH_SIZE = 2500
+
+
+@task
+def download_from_sftp():
+    client = SFTPClient(
+        host="sftp-server",
+        port=22,
+        username="testuser",
+        password="testpass"
+    )
+
+    if client.connect():
+        client.download_dbf_files()
+        client.disconnect()
 
 
 @task
@@ -232,6 +250,8 @@ with DAG(
     schedule=None,
     catchup=False,
 ) as dag:
-
+    download_task = download_from_sftp()
     agg_map = aggregate_mongodb_transactions()
-    reconcile_dbfs(agg_map)
+    recon_task = reconcile_dbfs(agg_map)
+
+    download_task >> agg_map
