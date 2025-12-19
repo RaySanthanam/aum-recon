@@ -1,6 +1,5 @@
 # APACHE AIRFLOW
 
-
 ### Create Sample Data
 
 ```sh
@@ -14,5 +13,3 @@
     colima start
     docker compose up -d
 ```
-
-Now we 

@@ -8,6 +8,7 @@ logs/
 sample_data/*
 sftp_data/uploads/*
 sftp_data/downloads/*
+sftp_data/reports/*
 
 # MongoDB data
 mongo-data/
