@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from dbfread import DBF  # type: ignore
 from pymongo import MongoClient
 
-CAMS_DBF_PATH = "/opt/airflow/sample_data/CAMS_SMALL_TEST.dbf"
-KARVEY_DBF_PATH = "/opt/airflow/sample_data/W1C1927.dbf"
+CAMS_DBF_PATH = "/opt/airflow/sample_data/cams.dbf"
+KARVEY_DBF_PATH = "/opt/airflow/sample_data/karvey.dbf"
 BATCH_SIZE = 2500
 
 
@@ -71,15 +71,15 @@ def reconcile_dbfs(aggregations_map):
         first_key = list(aggregations_map.keys())[0]
         print(f"DEBUG: First key sample: {first_key} = {aggregations_map[first_key]}")
 
-    print("Processing CAMS DBF...")
-    cams_table = DBF(CAMS_DBF_PATH, load=False)
-    cams_count = 0
-
     matched = []
     mismatched = []
     dbf_only = []
-
     processed_mongo_keys = set()
+
+    # Process CAMS DBF
+    print("Processing CAMS DBF...")
+    cams_table = DBF(CAMS_DBF_PATH, load=False)
+    cams_count = 0
 
     for record in cams_table:
         product = record['PRODUCT'].strip()
@@ -131,6 +131,61 @@ def reconcile_dbfs(aggregations_map):
 
     print(f"✓ Processed {cams_count} CAMS records")
 
+    # Process Karvy DBF
+    print("Processing Karvy DBF...")
+    karvy_table = DBF(KARVEY_DBF_PATH, load=False)
+    karvy_count = 0
+
+    for record in karvy_table:
+        product = record['PRCODE'].strip()
+        folio = str(record['ACNO']).strip()
+        scheme = record['FUNDDESC'].strip()
+        dbf_units = float(record['BALUNITS'])
+
+        key = (product, folio, scheme)
+        print(key)
+        if key in aggregations_map:
+            print("Matched Key", key)
+            mongo_units = round(aggregations_map[key], 3)
+            dbf_units_rounded = round(dbf_units, 3)
+
+            if abs(mongo_units - dbf_units_rounded) < 0.01:
+                matched.append({
+                    'source': 'KARVY',
+                    'product_code': product,
+                    'folio': folio,
+                    'scheme': scheme,
+                    'mongo_units': mongo_units,
+                    'dbf_units': dbf_units_rounded,
+                    'status': 'MATCHED'
+                })
+            else:
+                mismatched.append({
+                    'source': 'KARVY',
+                    'product_code': product,
+                    'folio': folio,
+                    'scheme': scheme,
+                    'mongo_units': mongo_units,
+                    'dbf_units': dbf_units_rounded,
+                    'difference': round(mongo_units - dbf_units_rounded, 3),
+                    'status': 'MISMATCHED'
+                })
+            processed_mongo_keys.add(key)
+
+        else:
+            dbf_only.append({
+                'source': 'KARVY',
+                'product_code': product,
+                'folio': folio,
+                'scheme': scheme,
+                'dbf_units': round(dbf_units, 3),
+                'status': 'DBF_ONLY'
+            })
+
+        karvy_count += 1
+
+    print(f"✓ Processed {karvy_count} Karvy records")
+
     mongo_only = []
     for key, units in aggregations_map.items():
         if key not in processed_mongo_keys:
@@ -161,14 +216,13 @@ def reconcile_dbfs(aggregations_map):
             'mismatched_count': len(mismatched),
             'dbf_only_count': len(dbf_only),
             'mongo_only_count': len(mongo_only),
-            'total_processed': cams_count,
-            # 'total_processed': cams_count + karvy_count
+            'total_processed': cams_count + karvy_count
         }
     }
 
 
 with DAG(
-    dag_id="cams-small-recon-test",
+    dag_id="aum-recon-test",
     default_args={
         "owner": "batch_processing",
         "retries": 3,

@@ -4,6 +4,9 @@
 # Airflow logs
 logs/
 
+# Sample Data
+sample_data/
+
 # MongoDB data
 mongo-data/
 
