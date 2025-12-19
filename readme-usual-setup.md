@@ -54,3 +54,7 @@
 ```
 
 ## _Steps for airflow setup with docker_
+
+```sh
+    docker restart brokerage-recon-airflow-scheduler-1 brokerage-recon-airflow-dag-processor-1
+```
