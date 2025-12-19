@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy application files
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY sftp_client.py .
+
+# Create download directory
+RUN mkdir -p /app/downloads
+
+# Run the Python application
+CMD ["python", "sftp_client.py"]

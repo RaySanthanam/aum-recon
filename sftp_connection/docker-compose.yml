@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  sftp-server:
+    image: atmoz/sftp
+    container_name: sftp-server
+    ports:
+      - "2222:22"
+    environment:
+      - SFTP_USERS=testuser:testpass:1001
+    volumes:
+      - ./data/sftp:/home/testuser/upload
+    restart: unless-stopped
+    networks:
+      - sftp-network
+
+  python-client:
+    build:
+      context: ..
+      dockerfile: Dockerfile.client
+    container_name: sftp-client
+    depends_on:
+      - sftp-server
+    environment:
+      - SFTP_HOST=sftp-server
+      - SFTP_PORT=22
+      - SFTP_USERNAME=testuser
+      - SFTP_PASSWORD=testpass
+      - DOWNLOAD_INTERVAL=10
+    volumes:
+      - ./data/downloads:/app/downloads
+      - ./data/sftp:/app/remote_files:ro
+    restart: unless-stopped
+    networks:
+      - sftp-network
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+networks:
+  sftp-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
