@@ -1,3 +1,4 @@
+from utils.sftp_client import SFTPClient
 from airflow import DAG
 from airflow.sdk.definitions.decorators import task
 from datetime import datetime, timedelta
@@ -6,8 +7,9 @@ from pymongo import MongoClient
 import sys
 import os
 import uuid
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils.sftp_client import SFTPClient
 
 CAMS_DBF_PATH = "/opt/airflow/sftp_data/downloads/cams.dbf"
 KARVEY_DBF_PATH = "/opt/airflow/sftp_data/downloads/karvey.dbf"
@@ -33,7 +35,83 @@ def download_from_sftp():
 
 
 @task
-def aggregate_mongodb_transactions():
+def extract_dbf_date():
+    errors = []
+    try:
+        print(f"Attempting to read date from CAMS DBF: {CAMS_DBF_PATH}")
+        cams_table = DBF(CAMS_DBF_PATH, load=False)
+
+        for record in cams_table:
+            asset_date_str = record.get('ASSET_DATE', '').strip()
+            if not asset_date_str:
+                raise ValueError("ASSET_DATE field is empty in CAMS DBF")
+
+            try:
+                transaction_date = datetime.strptime(asset_date_str, "%d-%m-%Y")
+                print(f"✓ Extracted date from CAMS: {transaction_date.strftime('%Y-%m-%d')}")
+                return transaction_date
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid date format in CAMS ASSET_DATE: '{asset_date_str}'. Expected DD-MM-YYYY"
+                ) from e
+
+    except FileNotFoundError as e:
+        error_msg = f"CAMS DBF file not found at {CAMS_DBF_PATH}"
+        print(f"⚠ {error_msg}", e)
+        errors.append(error_msg)
+    except Exception as e:
+        error_msg = f"Error reading CAMS DBF: {str(e)}"
+        print(f"⚠ {error_msg}")
+        errors.append(error_msg)
+
+    # Try Karvy if CAMS failed
+    try:
+        print(f"Attempting to read date from Karvy DBF: {KARVEY_DBF_PATH}")
+        karvy_table = DBF(KARVEY_DBF_PATH, load=False)
+
+        # Read first record to get date
+        for record in karvy_table:
+            trdate_str = record.get('TRDATE', '').strip()
+            if not trdate_str:
+                raise ValueError("TRDATE field is empty in Karvy DBF")
+
+            # Parse date format: DD-MM-YYYY
+            try:
+                transaction_date = datetime.strptime(trdate_str, "%d-%m-%Y")
+                print(f"✓ Extracted date from Karvy: {transaction_date.strftime('%Y-%m-%d')}")
+                return transaction_date
+            except ValueError as e:
+                raise ValueError(f"Invalid date format in Karvy TRDATE: '{trdate_str}'. Expected DD-MM-YYYY") from e
+
+    except FileNotFoundError as e:
+        error_msg = f"Karvy DBF file not found at {KARVEY_DBF_PATH}"
+        print(f"⚠ {error_msg}", e)
+        errors.append(error_msg)
+
+    except Exception as e:
+        error_msg = f"Error reading Karvy DBF: {str(e)}"
+        print(f"⚠ {error_msg}")
+        errors.append(error_msg)
+
+    # If both failed, raise error to fail the task
+    error_summary = "\n".join([f"  - {err}" for err in errors])
+    raise FileNotFoundError(
+        f"✗ FAILED: Could not extract date from any DBF file.\n"
+        f"Errors encountered:\n{error_summary}\n\n"
+        f"Please ensure DBF files are present and readable:\n"
+        f"  - CAMS: {CAMS_DBF_PATH}\n"
+        f"  - Karvy: {KARVEY_DBF_PATH}"
+    )
+
+
+@task
+def aggregate_mongodb_transactions(transaction_date=None):
+    """
+    Aggregate MongoDB transactions, optionally filtered by date.
+
+    Args:
+        transaction_date: datetime object to filter transactions (from DBF file date)
+    """
     client = MongoClient("mongodb://host.docker.internal:27017")
     db = client["banking_demo"]
     collection = db["wealth_pulse_transactions"]
@@ -41,7 +119,16 @@ def aggregate_mongodb_transactions():
     aggregations_map = {}
     total_transactions = 0
 
-    for txn in collection.find():
+    # Build query filter
+    query_filter = {}
+    if transaction_date:
+        # Filter transactions up to and including the transaction_date
+        query_filter["transaction_date"] = {"$lte": transaction_date}
+        print(f"Filtering MongoDB transactions up to date: {transaction_date.strftime('%Y-%m-%d')}")
+    else:
+        print("No date filter applied - processing all MongoDB transactions")
+
+    for txn in collection.find(query_filter):
         folio = txn["folio_no"]
         scheme = txn["scheme_name"]
         product_code = txn["product_code"]
@@ -322,8 +409,9 @@ with DAG(
     catchup=False,
 ) as dag:
     download_task = download_from_sftp()
-    agg_map = aggregate_mongodb_transactions()
+    dbf_date = extract_dbf_date()
+    agg_map = aggregate_mongodb_transactions(dbf_date)
     recon_result = reconcile_dbfs(agg_map)
     store_task = store_reconciliation_results(recon_result)
 
-    download_task >> agg_map >> recon_result >> store_task
+    download_task >> dbf_date >> agg_map >> recon_result >> store_task

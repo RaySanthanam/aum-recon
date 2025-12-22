@@ -54,13 +54,13 @@ MATCHED_RECORDS = [
 ]
 
 MISMATCHED_RECORDS = [
-    # Karvy mismatched (2 records) - DBF units will differ
+    # Karvy mismatched (2 records) - DBF units differ by 10-18 units
     # Format: (product, folio, mongo_units, dbf_units)
-    ("K08", "19951572342", 1000.500, 1050.750),
-    ("K09", "19951572343", 1500.250, 1450.125),
+    ("K08", "19951572342", 1000.500, 1015.300),  # Difference: 14.8
+    ("K09", "19951572343", 1500.250, 1487.450),  # Difference: -12.8
 
-    # CAMS mismatched (1 record)
-    ("B07", "1014433359", 1800.125, 1850.500),
+    # CAMS mismatched (1 record) - DBF units differ by 10-18 units
+    ("B07", "1014433359", 1800.125, 1816.925),  # Difference: 16.8
 ]
 
 MONGO_ONLY_RECORDS = [
@@ -76,6 +76,12 @@ DBF_ONLY_RECORDS = [
     # CAMS only (1 record)
     ("B08", "1014433360", 900.250, "CAMS"),
 ]
+
+
+def get_yesterday_date():
+    """Get yesterday's date."""
+    return datetime.now() - timedelta(days=1)
+
 
 # Scheme names mapping for different products (used for display only, not for matching)
 SCHEME_NAMES = {
@@ -106,6 +112,7 @@ def generate_mongo_transactions():
     """Generate 50 MongoDB transactions that aggregate to 20 unique records."""
 
     transactions = []
+    yesterday = get_yesterday_date()
 
     # Helper function to create BUY/SELL transactions that sum to target
     def create_transactions_for_record(product, folio, target_units):
@@ -151,8 +158,7 @@ def generate_mongo_transactions():
                 "product_code": product,
                 "units": amount,
                 "transaction_type": "BUY",
-                "transaction_date": datetime.now() - timedelta(
-                    days=random.randint(1, 365)),
+                "transaction_date": yesterday - timedelta(days=random.randint(1, 365)),
                 "nav": round(random.uniform(10, 500), 2),
                 "amount": round(amount * random.uniform(10, 500), 2)
             })
@@ -165,8 +171,7 @@ def generate_mongo_transactions():
                 "product_code": product,
                 "units": sell_amount,
                 "transaction_type": "SELL",
-                "transaction_date": datetime.now() - timedelta(
-                    days=random.randint(1, 180)),
+                "transaction_date": yesterday - timedelta(days=random.randint(1, 180)),
                 "nav": round(random.uniform(10, 500), 2),
                 "amount": round(sell_amount * random.uniform(10, 500), 2)
             })
@@ -202,6 +207,9 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
     # Create directory if it doesn't exist
     os.makedirs(os.path.dirname(filename), exist_ok=True)
 
+    yesterday = get_yesterday_date()
+    yesterday_str = yesterday.strftime("%d-%m-%Y")
+
     # Create DBF with Karvy structure
     table = dbf.Table(
         filename,
@@ -228,7 +236,7 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
             'FUNDDESC': scheme,
             'BALUNITS': units,
             'PLDG': 0.0,
-            'TRDATE': datetime.now().strftime("%d-%m-%Y"),
+            'TRDATE': yesterday_str,
             'TRDESC': 'Balance',
             'MOH': '',
             'BROKCODE': 'ARN-110136',
@@ -247,9 +255,9 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
             'EMAIL': f'investor{folio[-4:]}@example.com',
             'VALINV': round(units * random.uniform(100, 300), 2),
             'LNAV': str(round(random.uniform(100, 300), 2)),
-            'CRDATE': datetime.now().strftime("%d-%m-%Y"),
+            'CRDATE': yesterday_str,
             'CRTIME': datetime.now().strftime("%H%M%S"),
-            'TODATE': datetime.now().strftime("%d-%m-%Y")
+            'TODATE': yesterday_str
         })
         records_added += 1
 
@@ -265,7 +273,7 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
             'FUNDDESC': scheme,
             'BALUNITS': dbf_units,  # Different from MongoDB
             'PLDG': 0.0,
-            'TRDATE': datetime.now().strftime("%d-%m-%Y"),
+            'TRDATE': yesterday_str,
             'TRDESC': 'Balance',
             'MOH': '',
             'BROKCODE': 'ARN-110136',
@@ -284,9 +292,9 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
             'EMAIL': f'investor{folio[-4:]}@example.com',
             'VALINV': round(dbf_units * random.uniform(100, 300), 2),
             'LNAV': str(round(random.uniform(100, 300), 2)),
-            'CRDATE': datetime.now().strftime("%d-%m-%Y"),
+            'CRDATE': yesterday_str,
             'CRTIME': datetime.now().strftime("%H%M%S"),
-            'TODATE': datetime.now().strftime("%d-%m-%Y")
+            'TODATE': yesterday_str
         })
         records_added += 1
 
@@ -302,7 +310,7 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
             'FUNDDESC': scheme,
             'BALUNITS': units,
             'PLDG': 0.0,
-            'TRDATE': datetime.now().strftime("%d-%m-%Y"),
+            'TRDATE': yesterday_str,
             'TRDESC': 'Balance',
             'MOH': '',
             'BROKCODE': 'ARN-110136',
@@ -321,9 +329,9 @@ def generate_karvy_dbf(filename="sftp_data/uploads/karvey.dbf"):
             'EMAIL': f'investor{folio[-4:]}@example.com',
             'VALINV': round(units * random.uniform(100, 300), 2),
             'LNAV': str(round(random.uniform(100, 300), 2)),
-            'CRDATE': datetime.now().strftime("%d-%m-%Y"),
+            'CRDATE': yesterday_str,
             'CRTIME': datetime.now().strftime("%H%M%S"),
-            'TODATE': datetime.now().strftime("%d-%m-%Y")
+            'TODATE': yesterday_str
         })
         records_added += 1
 
@@ -339,6 +347,9 @@ def generate_cams_dbf(filename="sftp_data/uploads/cams.dbf"):
 
     # Create directory if it doesn't exist
     os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+    yesterday = get_yesterday_date()
+    yesterday_str = yesterday.strftime("%d-%m-%Y")
 
     # Create DBF with CAMS structure
     table = dbf.Table(
@@ -359,7 +370,7 @@ def generate_cams_dbf(filename="sftp_data/uploads/cams.dbf"):
         table.append({
             'BROK_DLR_C': 'ARN-110136',
             'PRODUCT': product,
-            'ASSET_DATE': datetime.now().strftime("%d-%m-%Y"),
+            'ASSET_DATE': yesterday_str,
             'FOLIO': folio,
             'INV_NAME': 'Test Investor ' + folio[-4:],
             'SCHEME_NAM': scheme,
@@ -382,7 +393,7 @@ def generate_cams_dbf(filename="sftp_data/uploads/cams.dbf"):
         table.append({
             'BROK_DLR_C': 'ARN-110136',
             'PRODUCT': product,
-            'ASSET_DATE': datetime.now().strftime("%d-%m-%Y"),
+            'ASSET_DATE': yesterday_str,
             'FOLIO': folio,
             'INV_NAME': 'Test Investor ' + folio[-4:],
             'SCHEME_NAM': scheme,
@@ -405,7 +416,7 @@ def generate_cams_dbf(filename="sftp_data/uploads/cams.dbf"):
         table.append({
             'BROK_DLR_C': 'ARN-110136',
             'PRODUCT': product,
-            'ASSET_DATE': datetime.now().strftime("%d-%m-%Y"),
+            'ASSET_DATE': yesterday_str,
             'FOLIO': folio,
             'INV_NAME': 'Test Investor ' + folio[-4:],
             'SCHEME_NAM': scheme,
