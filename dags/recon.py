@@ -1,4 +1,3 @@
-from utils.sftp_client import SFTPClient
 from airflow import DAG
 from airflow.sdk.definitions.decorators import task
 from datetime import datetime, timedelta
@@ -10,6 +9,7 @@ import uuid
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.sftp_client import SFTPClient
 
 CAMS_DBF_PATH = "/opt/airflow/sftp_data/downloads/cams.dbf"
 KARVEY_DBF_PATH = "/opt/airflow/sftp_data/downloads/karvey.dbf"
