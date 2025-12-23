@@ -1,4 +1,3 @@
-from utils.sftp_client import SFTPClient
 from airflow import DAG
 from airflow.sdk.definitions.decorators import task
 from datetime import datetime, timedelta
@@ -8,8 +7,9 @@ import sys
 import os
 import uuid
 
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from utils.sftp_client import SFTPClient
 
 CAMS_DBF_PATH = "/opt/airflow/sftp_data/downloads/cams.dbf"
 KARVEY_DBF_PATH = "/opt/airflow/sftp_data/downloads/karvey.dbf"
@@ -106,55 +106,72 @@ def extract_dbf_date():
 
 @task
 def aggregate_mongodb_transactions(transaction_date=None):
-    """
-    Aggregate MongoDB transactions, optionally filtered by date.
-
-    Args:
-        transaction_date: datetime object to filter transactions (from DBF file date)
-    """
     client = MongoClient("mongodb://host.docker.internal:27017")
     db = client["banking_demo"]
     collection = db["wealth_pulse_transactions"]
 
-    aggregations_map = {}
-    total_transactions = 0
+    pipeline = []
 
-    # Build query filter
-    query_filter = {}
     if transaction_date:
-        # Filter transactions up to and including the transaction_date
-        query_filter["transaction_date"] = {"$lte": transaction_date}
+        pipeline.append({
+            "$match": {
+                "transaction_date": {"$lte": transaction_date}
+            }
+        })
         print(f"Filtering MongoDB transactions up to date: {transaction_date.strftime('%Y-%m-%d')}")
     else:
         print("No date filter applied - processing all MongoDB transactions")
 
-    for txn in collection.find(query_filter):
-        folio = txn["folio_no"]
-        scheme = txn["scheme_name"]
-        product_code = txn["product_code"]
-        qty = txn["units"]
-        txn_type = txn["transaction_type"]
+    pipeline.append({
+        "$group": {
+            "_id": {
+                "product_code": "$product_code",
+                "folio_no": "$folio_no"
+            },
+            "net_units": {
+                "$sum": {
+                    "$cond": {
+                        "if": {"$eq": ["$transaction_type", "BUY"]},
+                        "then": "$units",
+                        "else": {"$multiply": ["$units", -1]}
+                    }
+                }
+            },
+            "scheme_name": {"$first": "$scheme_name"},
+            "transaction_count": {"$sum": 1}
+        }
+    })
 
-        key = f"{product_code}|{folio}|{scheme}"
+    pipeline.append({
+        "$project": {
+            "_id": 0,
+            "product_code": "$_id.product_code",
+            "folio_no": "$_id.folio_no",
+            "scheme_name": 1,
+            "units": {"$round": ["$net_units", 3]},
+            "transaction_count": 1
+        }
+    })
 
-        if key not in aggregations_map:
-            aggregations_map[key] = 0.0
+    print("Executing MongoDB aggregation pipeline...")
+    results = list(collection.aggregate(pipeline))
 
-        if txn_type == "BUY":
-            aggregations_map[key] += qty
-        elif txn_type == "SELL":
-            aggregations_map[key] -= qty
+    aggregations_map = {
+        f"{doc['product_code']}|{doc['folio_no']}": {
+            'units': doc['units'],
+            'scheme_name': doc['scheme_name']
+        }
+        for doc in results
+    }
 
-        total_transactions += 1
-
-    for key in aggregations_map:
-        aggregations_map[key] = round(aggregations_map[key], 3)
+    total_transactions = sum(doc['transaction_count'] for doc in results)
 
     client.close()
 
     print(f"✓ Processed {total_transactions} transactions")
     print(f"✓ Created {len(aggregations_map)} unique combinations")
     print("✓ SUCCESS: Aggregation completed!")
+    print("\nSample Aggregated Records:", aggregations_map)
     return aggregations_map
 
 
@@ -162,26 +179,34 @@ def aggregate_mongodb_transactions(transaction_date=None):
 def reconcile_dbfs(aggregations_map):
     print(f"DEBUG: Received aggregations_map with {len(aggregations_map)} entries")
 
+    if aggregations_map:
+        print("\nSample MongoDB keys (product_code|folio):")
+        for i, (key, data) in enumerate(list(aggregations_map.items())[:3]):
+            print(f"  {i+1}. {key} ({data['scheme_name']}) = {data['units']} units")
+
     matched = []
     mismatched = []
     dbf_only = []
     processed_mongo_keys = set()
 
-    def process_dbf_record(key, dbf_units, source):
+    def process_dbf_record(key, dbf_units, dbf_scheme, source):
+        key_parts = key.split('|')
+
         if key in aggregations_map:
             if key in processed_mongo_keys:
                 print(f"WARNING: Duplicate key found in {source}: {key}")
                 return
 
             print(f"Matched Key from {source}: {key}")
-            mongo_units = round(aggregations_map[key], 3)
+            mongo_data = aggregations_map[key]
+            mongo_units = round(mongo_data['units'], 3)
             dbf_units_rounded = round(dbf_units, 3)
 
             record_data = {
                 'source': source,
-                'product_code': key[0],
-                'folio': key[1],
-                'scheme': key[2],
+                'product_code': key_parts[0],
+                'folio': key_parts[1],
+                'scheme': dbf_scheme,  # Use DBF scheme name
                 'mongo_units': mongo_units,
                 'dbf_units': dbf_units_rounded,
             }
@@ -198,15 +223,15 @@ def reconcile_dbfs(aggregations_map):
         else:
             dbf_only.append({
                 'source': source,
-                'product_code': key[0],
-                'folio': key[1],
-                'scheme': key[2],
+                'product_code': key_parts[0],
+                'folio': key_parts[1],
+                'scheme': dbf_scheme,
                 'dbf_units': round(dbf_units, 3),
                 'status': 'DBF_ONLY'
             })
 
     # Process CAMS DBF
-    print("Processing CAMS DBF...")
+    print("\nProcessing CAMS DBF...")
     cams_table = DBF(CAMS_DBF_PATH, load=False)
     cams_count = 0
 
@@ -215,14 +240,19 @@ def reconcile_dbfs(aggregations_map):
         folio = record['FOLIO'].strip()
         scheme = record['SCHEME_NAM'].strip()
         dbf_units = float(record['UNITS'])
-        key = f"{product}|{folio}|{scheme}"
-        process_dbf_record(key, dbf_units, 'CAMS')
+        key = f"{product}|{folio}"  # Only product and folio
+
+        # Debug first few records
+        if cams_count < 3:
+            print(f"  CAMS Record {cams_count+1}: {key} ({scheme}) = {dbf_units} units")
+
+        process_dbf_record(key, dbf_units, scheme, 'CAMS')
         cams_count += 1
 
     print(f"✓ Processed {cams_count} CAMS records")
 
     # Process Karvy DBF
-    print("Processing Karvy DBF...")
+    print("\nProcessing Karvy DBF...")
     karvy_table = DBF(KARVEY_DBF_PATH, load=False)
     karvy_count = 0
 
@@ -231,21 +261,27 @@ def reconcile_dbfs(aggregations_map):
         folio = str(record['ACNO']).strip()
         scheme = record['FUNDDESC'].strip()
         dbf_units = float(record['BALUNITS'])
-        key = f"{product}|{folio}|{scheme}"
-        process_dbf_record(key, dbf_units, 'KARVY')
+        key = f"{product}|{folio}"  # Only product and folio
+
+        # Debug first few records
+        if karvy_count < 3:
+            print(f"  Karvy Record {karvy_count+1}: {key} ({scheme}) = {dbf_units} units")
+
+        process_dbf_record(key, dbf_units, scheme, 'KARVY')
         karvy_count += 1
 
     print(f"✓ Processed {karvy_count} Karvy records")
 
     # Find MongoDB-only records
     mongo_only = []
-    for key, units in aggregations_map.items():
+    for key, mongo_data in aggregations_map.items():
         if key not in processed_mongo_keys:
+            key_parts = key.split('|')
             mongo_only.append({
-                'product_code': key[0],
-                'folio': key[1],
-                'scheme': key[2],
-                'mongo_units': round(units, 3),
+                'product_code': key_parts[0],
+                'folio': key_parts[1],
+                'scheme': mongo_data['scheme_name'],
+                'mongo_units': round(mongo_data['units'], 3),
                 'status': 'MONGO_ONLY'
             })
 
@@ -270,6 +306,42 @@ def reconcile_dbfs(aggregations_map):
             'mongo_only_count': len(mongo_only),
         }
     }
+
+
+@task
+def create_mongodb_indexes():
+    client = MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    collection = db[TRANSACTIONS_COLLECTION]
+
+    try:
+        # Index for date filtering in $match stage
+        collection.create_index([("transaction_date", -1)], name="idx_transaction_date")
+        print("✓ Created/verified index on transaction_date")
+
+        # Compound index for grouping in $group stage
+        collection.create_index([
+            ("product_code", 1),
+            ("folio_no", 1),
+            ("scheme_name", 1)
+        ], name="idx_grouping_keys")
+        print("✓ Created/verified compound index on product_code, folio_no, scheme_name")
+
+        # Index for transaction type (helps $cond in aggregation)
+        collection.create_index([("transaction_type", 1)], name="idx_transaction_type")
+        print("✓ Created/verified index on transaction_type")
+
+        # List all indexes
+        indexes = collection.list_indexes()
+        print("\nCurrent indexes on collection:")
+        for idx in indexes:
+            print(f"  - {idx['name']}: {idx.get('key', {})}")
+
+    except Exception as e:
+        print(f"⚠ Warning: Could not create indexes: {str(e)}")
+        print("  Continuing without indexes (queries will be slower)")
+
+    client.close()
 
 
 @task
@@ -408,10 +480,11 @@ with DAG(
     schedule=None,
     catchup=False,
 ) as dag:
+    indexes_task = create_mongodb_indexes()
     download_task = download_from_sftp()
     dbf_date = extract_dbf_date()
     agg_map = aggregate_mongodb_transactions(dbf_date)
     recon_result = reconcile_dbfs(agg_map)
     store_task = store_reconciliation_results(recon_result)
 
-    download_task >> dbf_date >> agg_map >> recon_result >> store_task
+    indexes_task >> download_task >> dbf_date >> agg_map >> recon_result >> store_task

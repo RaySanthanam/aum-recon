@@ -1,5 +1,13 @@
 # APACHE AIRFLOW
 
+
+### Set Airflow UID in .env file
+
+```sh
+    AIRFLOW_UID=501
+```
+
+
 ### Create Sample Data
 
 ```sh
@@ -9,7 +17,5 @@
 #### Start the docker
 
 ```sh
-    colima stop
-    colima start
     docker compose up -d
 ```

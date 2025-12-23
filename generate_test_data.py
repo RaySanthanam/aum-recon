@@ -158,7 +158,7 @@ def generate_mongo_transactions():
                 "product_code": product,
                 "units": amount,
                 "transaction_type": "BUY",
-                "transaction_date": yesterday - timedelta(days=random.randint(1, 365)),
+                "transaction_date": yesterday - timedelta(days=random.randint(1, 30)),
                 "nav": round(random.uniform(10, 500), 2),
                 "amount": round(amount * random.uniform(10, 500), 2)
             })
@@ -171,7 +171,7 @@ def generate_mongo_transactions():
                 "product_code": product,
                 "units": sell_amount,
                 "transaction_type": "SELL",
-                "transaction_date": yesterday - timedelta(days=random.randint(1, 180)),
+                "transaction_date": yesterday - timedelta(days=random.randint(1, 30)),
                 "nav": round(random.uniform(10, 500), 2),
                 "amount": round(sell_amount * random.uniform(10, 500), 2)
             })
