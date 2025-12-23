@@ -259,10 +259,6 @@ def store_reconciliation_results(data):
     return {"run_id": run_id, "total_records": len(records)}
 
 
-# ------------------------------------------------------------------
-# DAG
-# ------------------------------------------------------------------
-
 with DAG(
     dag_id="aum-recon-parallel",
     start_date=datetime(2024, 1, 1),
