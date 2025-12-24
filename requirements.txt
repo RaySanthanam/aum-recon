@@ -1,0 +1,5 @@
+pymongo
+dbfread
+apache-airflow
+paramiko
+dbf
