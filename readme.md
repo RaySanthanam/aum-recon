@@ -1,5 +1,11 @@
 # APACHE AIRFLOW
 
+### Create env file and give the following value
+
+```sh
+    AIRFLOW_UID=501
+```
+
 ### Create Sample Data
 
 ```sh
