@@ -1,7 +1,7 @@
 """AUM Reconciliation DAG - Parallel processing of CAMS and KARVY data."""
 
 from airflow import DAG
-from airflow.decorators import task
+from airflow.sdk.definitions.decorators import task
 from datetime import datetime, timedelta
 
 from recon.sftp import download_dbf_files
