@@ -62,7 +62,7 @@ def store(data):
 
 
 with DAG(
-    dag_id="aum-recon-parallel",
+    dag_id="aum_recon",
     start_date=datetime(2024, 1, 1),
     schedule=None,
     catchup=False,
