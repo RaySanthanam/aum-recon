@@ -1,0 +1,23 @@
+# Core Airflow
+apache-airflow==3.1.5
+
+# Database drivers
+pymongo==4.6.1
+psycopg2-binary==2.9.9
+
+# File processing
+dbfread==2.0.7
+
+# SFTP
+paramiko==3.4.0
+
+# Testing dependencies
+pytest==7.4.3
+pytest-mock==3.12.0
+
+# Code quality
+black==23.12.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+pylint==3.0.3

@@ -39,3 +39,26 @@ airflow.db
 .idea/
 *.swp
 *.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# Temporary files
+*.tmp
+*.bak
+*.old
