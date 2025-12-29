@@ -25,6 +25,16 @@ __pycache__/
 # Airflow database (SQLite)
 airflow.db
 
+# Airflow config (root level - use config/airflow.cfg instead)
+/airflow.cfg
+
+# Test coverage
+.coverage
+*.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
 # Process ID files
 *.pid
 
