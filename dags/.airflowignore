@@ -1,0 +1,9 @@
+# Airflow will ignore files matching these patterns
+tests/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
