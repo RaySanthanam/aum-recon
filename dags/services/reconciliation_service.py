@@ -1,5 +1,3 @@
-"""Reconciliation logic for matching DBF and MongoDB data."""
-
 from .dbf_reader import read_cams_records, read_karvy_records
 
 
@@ -65,6 +63,7 @@ def _reconcile(records, aggregations_map, source):
 
 def reconcile_cams(aggregations_map):
     """Reconcile CAMS DBF file against MongoDB aggregations."""
+
     m, mm, d, p = _reconcile(read_cams_records(), aggregations_map, "CAMS")
     return {
         "matched": m,
@@ -82,4 +81,31 @@ def reconcile_karvy(aggregations_map):
         "mismatched": mm,
         "dbf_only": d,
         "processed_keys": list(p),
+    }
+
+
+def merge_reconciliation_results(cams, karvy, aggregations):
+    """
+        Merge CAMS and KARVY reconciliation results and identify MongoDB-only records.
+    """
+    processed = set(cams["processed_keys"] + karvy["processed_keys"])
+
+    mongo_only = []
+    for key, units in aggregations.items():
+        if key not in processed:
+            product, folio, scheme = key.split("|")
+            mongo_only.append({
+                "source": "WP_MONGO",
+                "product_code": product,
+                "folio": folio,
+                "scheme": scheme,
+                "mongo_units": units,
+                "status": "MONGO_ONLY",
+            })
+
+    return {
+        "matched": cams["matched"] + karvy["matched"],
+        "mismatched": cams["mismatched"] + karvy["mismatched"],
+        "dbf_only": cams["dbf_only"] + karvy["dbf_only"],
+        "mongo_only": mongo_only,
     }

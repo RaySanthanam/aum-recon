@@ -1,11 +1,13 @@
-"""Tests for reconciliation module."""
-
-from recon.reconcile import reconcile_cams, reconcile_karvy
+from services.reconciliation_service import (
+    reconcile_cams,
+    reconcile_karvy,
+    merge_reconciliation_results,
+)
 
 
 def test_reconcile_cams_matched(monkeypatch, aggregations_map, cams_record):
     monkeypatch.setattr(
-        "recon.reconcile.read_cams_records",
+        "services.reconciliation_service.read_cams_records",
         lambda: [cams_record],
     )
 
@@ -22,7 +24,7 @@ def test_reconcile_cams_mismatched(monkeypatch, aggregations_map, cams_record):
     cams_record["UNITS"] = "90"
 
     monkeypatch.setattr(
-        "recon.reconcile.read_cams_records",
+        "services.reconciliation_service.read_cams_records",
         lambda: [cams_record],
     )
 
@@ -36,7 +38,7 @@ def test_reconcile_cams_mismatched(monkeypatch, aggregations_map, cams_record):
 
 def test_reconcile_cams_dbf_only(monkeypatch, cams_record):
     monkeypatch.setattr(
-        "recon.reconcile.read_cams_records",
+        "services.reconciliation_service.read_cams_records",
         lambda: [cams_record],
     )
 
@@ -51,7 +53,7 @@ def test_reconcile_karvy_matched(monkeypatch, aggregations_map, karvy_record):
     aggregations_map_karvy = {"P001|12345|Scheme A": 100.0}
 
     monkeypatch.setattr(
-        "recon.reconcile.read_karvy_records",
+        "services.reconciliation_service.read_karvy_records",
         lambda: [karvy_record],
     )
 
@@ -65,7 +67,7 @@ def test_reconcile_karvy_matched(monkeypatch, aggregations_map, karvy_record):
 def test_reconcile_karvy_mismatched(monkeypatch, karvy_record):
     aggregations_map_karvy = {"P001|12345|Scheme A": 90.0}
     monkeypatch.setattr(
-        "recon.reconcile.read_karvy_records",
+        "services.reconciliation_service.read_karvy_records",
         lambda: [karvy_record],
     )
 
@@ -77,7 +79,7 @@ def test_reconcile_karvy_mismatched(monkeypatch, karvy_record):
 
 def test_reconcile_karvy_dbf_only(monkeypatch, karvy_record):
     monkeypatch.setattr(
-        "recon.reconcile.read_karvy_records",
+        "services.reconciliation_service.read_karvy_records",
         lambda: [karvy_record],
     )
 
@@ -115,7 +117,7 @@ def test_reconcile_multiple_records(monkeypatch, aggregations_map):
     }
 
     monkeypatch.setattr(
-        "recon.reconcile.read_cams_records",
+        "services.reconciliation_service.read_cams_records",
         lambda: records,
     )
 
@@ -135,7 +137,7 @@ def test_reconcile_whitespace_handling(monkeypatch, aggregations_map):
     }
 
     monkeypatch.setattr(
-        "recon.reconcile.read_cams_records",
+        "services.reconciliation_service.read_cams_records",
         lambda: [record],
     )
 
@@ -145,3 +147,39 @@ def test_reconcile_whitespace_handling(monkeypatch, aggregations_map):
     assert result["matched"][0]["product_code"] == "P001"
     assert result["matched"][0]["folio"] == "F001"
     assert result["matched"][0]["scheme"] == "Scheme A"
+
+
+def test_merge_reconciliation_results():
+    cams_results = {
+        "matched": [{"id": 1}],
+        "mismatched": [{"id": 2}],
+        "dbf_only": [{"id": 3}],
+        "processed_keys": ["P001|F001|Scheme A", "P002|F002|Scheme B"],
+    }
+
+    karvy_results = {
+        "matched": [{"id": 4}],
+        "mismatched": [],
+        "dbf_only": [{"id": 5}],
+        "processed_keys": ["P003|F003|Scheme C"],
+    }
+
+    aggregations = {
+        "P001|F001|Scheme A": 100.0,
+        "P002|F002|Scheme B": 200.0,
+        "P003|F003|Scheme C": 300.0,
+        "P004|F004|Scheme D": 400.0,  # This should be in mongo_only
+    }
+
+    result = merge_reconciliation_results(cams_results, karvy_results, aggregations)
+
+    assert len(result["matched"]) == 2
+    assert len(result["mismatched"]) == 1
+    assert len(result["dbf_only"]) == 2
+    assert len(result["mongo_only"]) == 1
+    assert result["mongo_only"][0]["product_code"] == "P004"
+    assert result["mongo_only"][0]["folio"] == "F004"
+    assert result["mongo_only"][0]["scheme"] == "Scheme D"
+    assert result["mongo_only"][0]["mongo_units"] == 400.0
+    assert result["mongo_only"][0]["status"] == "MONGO_ONLY"
+    assert result["mongo_only"][0]["source"] == "WP_MONGO"

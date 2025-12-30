@@ -1,6 +1,4 @@
-"""Tests for SFTP module."""
-
-from recon.sftp import download_dbf_files
+from services.sftp_service import download_dbf_files
 
 
 def test_successful_download(monkeypatch):
@@ -23,7 +21,7 @@ def test_successful_download(monkeypatch):
         def disconnect(self):
             disconnected[0] = True
 
-    monkeypatch.setattr("recon.sftp.SFTPClient", MockSFTPClient)
+    monkeypatch.setattr("services.sftp_service.SFTPClient", MockSFTPClient)
 
     download_dbf_files()
 
@@ -50,7 +48,7 @@ def test_connection_failure(monkeypatch):
         def disconnect(self):
             pass
 
-    monkeypatch.setattr("recon.sftp.SFTPClient", MockSFTPClient)
+    monkeypatch.setattr("services.sftp_service.SFTPClient", MockSFTPClient)
 
     download_dbf_files()
 

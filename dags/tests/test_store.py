@@ -1,6 +1,4 @@
-"""Tests for store module."""
-
-from recon.store import store_results
+from repositories.mongodb.reconciliation_repo import store_results
 
 
 def test_store_with_all_record_types(monkeypatch):
@@ -19,7 +17,7 @@ def test_store_with_all_record_types(monkeypatch):
             'close': lambda self: closed.__setitem__(0, True)
         })()
 
-    monkeypatch.setattr("recon.store.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.reconciliation_repo.MongoClient", mock_mongo_client)
 
     data = {
         "matched": [{"product_code": "P001"}],
@@ -52,7 +50,7 @@ def test_store_empty_results(monkeypatch):
             'close': lambda self: closed.__setitem__(0, True)
         })()
 
-    monkeypatch.setattr("recon.store.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.reconciliation_repo.MongoClient", mock_mongo_client)
 
     data = {
         "matched": [],
@@ -83,7 +81,7 @@ def test_records_have_metadata(monkeypatch):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.store.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.reconciliation_repo.MongoClient", mock_mongo_client)
 
     data = {
         "matched": [{"product_code": "P001"}],
@@ -117,7 +115,7 @@ def test_mixed_record_counts(monkeypatch):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.store.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.reconciliation_repo.MongoClient", mock_mongo_client)
 
     data = {
         "matched": [{"id": 1}, {"id": 2}],

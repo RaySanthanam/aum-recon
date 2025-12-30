@@ -1,12 +1,4 @@
-"""SFTP operations for downloading DBF files."""
-
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
-
-from utils.sftp_client import SFTPClient  # noqa: E402
+from clients.sftp_client import SFTPClient
 
 
 def download_dbf_files():

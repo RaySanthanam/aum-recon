@@ -1,9 +1,7 @@
-"""DBF file reading operations."""
-
 from datetime import datetime
 from dbfread import DBF  # type: ignore
 
-from .constants import CAMS_DBF_PATH, KARVEY_DBF_PATH
+from repositories.mongodb.constants import CAMS_DBF_PATH, KARVEY_DBF_PATH
 
 
 def extract_transaction_date():

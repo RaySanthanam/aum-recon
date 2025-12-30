@@ -1,7 +1,5 @@
-"""Tests for MongoDB module."""
-
 from datetime import datetime
-from recon.mongo import aggregate_transactions
+from repositories.mongodb.transaction_repo import aggregate_transactions
 
 
 def test_aggregate_buy_transactions(monkeypatch, mongo_transaction):
@@ -17,7 +15,7 @@ def test_aggregate_buy_transactions(monkeypatch, mongo_transaction):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.mongo.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.transaction_repo.MongoClient", mock_mongo_client)
 
     result = aggregate_transactions(datetime(2024, 12, 15))
 
@@ -55,7 +53,7 @@ def test_aggregate_buy_and_sell(monkeypatch):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.mongo.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.transaction_repo.MongoClient", mock_mongo_client)
 
     result = aggregate_transactions(datetime(2024, 12, 15))
     assert result["P001|F001|Scheme A"] == 100.0
@@ -91,7 +89,7 @@ def test_aggregate_multiple_schemes(monkeypatch):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.mongo.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.transaction_repo.MongoClient", mock_mongo_client)
 
     result = aggregate_transactions(datetime(2024, 12, 15))
 
@@ -121,7 +119,7 @@ def test_aggregate_rounding(monkeypatch):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.mongo.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.transaction_repo.MongoClient", mock_mongo_client)
 
     result = aggregate_transactions(datetime(2024, 12, 15))
     assert result["P001|F001|Scheme A"] == 100.123
@@ -140,7 +138,7 @@ def test_aggregate_empty_result(monkeypatch):
             'close': lambda self: None
         })()
 
-    monkeypatch.setattr("recon.mongo.MongoClient", mock_mongo_client)
+    monkeypatch.setattr("repositories.mongodb.transaction_repo.MongoClient", mock_mongo_client)
 
     result = aggregate_transactions(datetime(2024, 12, 15))
     assert result == {}
